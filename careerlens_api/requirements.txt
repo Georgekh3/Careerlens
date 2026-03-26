@@ -5,3 +5,6 @@ sqlalchemy
 psycopg[binary]
 pydantic
 python-dotenv
+requests
+pypdf
+python-docx

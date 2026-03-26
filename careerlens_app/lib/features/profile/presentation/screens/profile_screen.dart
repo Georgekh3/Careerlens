@@ -1,26 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/config/supabase_config.dart';
+import '../../../../core/services/profile_service.dart';
 import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({
-    super.key,
-    required this.profile,
-  });
+  const ProfileScreen({super.key, this.profile});
 
-  final Map<String, dynamic> profile;
+  final Map<String, dynamic>? profile;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  late Map<String, dynamic> _profile;
+  final ProfileService _profileService = ProfileService();
+
+  Map<String, dynamic> _profile = <String, dynamic>{};
+  bool _isLoading = true;
+  bool _isSaving = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _profile = Map<String, dynamic>.from(widget.profile);
+    _profile = Map<String, dynamic>.from(
+      widget.profile ?? const <String, dynamic>{},
+    );
+    if (SupabaseConfig.isConfigured) {
+      _loadProfile();
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final loaded = await _profileService.fetchCurrentUserProfile();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = loaded;
+      });
+    } on PostgrestException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } on AuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = 'Unable to load your profile right now.');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _openEditProfile() async {
@@ -31,6 +79,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (updated != null) {
+      await _saveProfile(updated);
+    }
+  }
+
+  Future<void> _saveProfile(Map<String, dynamic> updated) async {
+    if (!SupabaseConfig.isConfigured) {
       setState(() {
         _profile = updated;
       });
@@ -40,6 +94,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile updated successfully.')),
       );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final saved = await _profileService.saveCurrentUserProfile(updated);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _profile = saved;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully.')),
+      );
+    } on PostgrestException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } on AuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = 'Unable to save your profile right now.');
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -66,7 +158,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final experience = _asMapList(_profile['experience']);
     final education = _asMapList(_profile['education']);
     final certifications = _asMapList(_profile['certifications']);
-
     final summary = (_profile['summary'] as String?)?.trim();
 
     return Scaffold(
@@ -76,127 +167,153 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: const Color(0xFF1E4EA8),
         foregroundColor: Colors.white,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ProfileHeaderCard(profile: _profile),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Summary / About',
-              child: Text(
-                (summary == null || summary.isEmpty)
-                    ? 'No summary available yet.'
-                    : summary,
-                style: const TextStyle(color: Color(0xFF2A3F66), height: 1.45),
-              ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Skills',
-              child: skills.isEmpty
-                  ? const Text(
-                      'No skills available yet.',
-                      style: TextStyle(color: Color(0xFF4E6388)),
-                    )
-                  : Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: skills
-                          .map(
-                            (skill) => Chip(
-                              label: Text(skill),
-                              backgroundColor: const Color(0xFFE9F0FF),
-                              labelStyle: const TextStyle(
-                                color: Color(0xFF1E4EA8),
-                                fontWeight: FontWeight.w600,
-                              ),
-                              side: BorderSide.none,
-                            ),
-                          )
-                          .toList(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_errorMessage != null) ...[
+                    _SectionCard(
+                      title: 'Status',
+                      child: Text(
+                        _errorMessage!,
+                        style: const TextStyle(color: Color(0xFFB42318)),
+                      ),
                     ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Experience',
-              child: experience.isEmpty
-                  ? const Text(
-                      'No experience available yet.',
-                      style: TextStyle(color: Color(0xFF4E6388)),
-                    )
-                  : Column(
-                      children: experience
-                          .map(
-                            (item) => _DetailTile(
-                              title:
-                                  '${item['job_title'] ?? '-'} - ${item['company'] ?? '-'}',
-                              subtitle:
-                                  '${item['start_date'] ?? '-'} to ${item['end_date'] ?? '-'}\n${item['description'] ?? '-'}',
-                            ),
-                          )
-                          .toList(),
+                    const SizedBox(height: 12),
+                  ],
+                  _ProfileHeaderCard(profile: _profile),
+                  const SizedBox(height: 12),
+                  _SectionCard(
+                    title: 'Summary / About',
+                    child: Text(
+                      (summary == null || summary.isEmpty)
+                          ? 'No summary available yet.'
+                          : summary,
+                      style: const TextStyle(
+                        color: Color(0xFF2A3F66),
+                        height: 1.45,
+                      ),
                     ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Education',
-              child: education.isEmpty
-                  ? const Text(
-                      'No education available yet.',
-                      style: TextStyle(color: Color(0xFF4E6388)),
-                    )
-                  : Column(
-                      children: education
-                          .map(
-                            (item) => _DetailTile(
-                              title: '${item['degree'] ?? '-'} (${item['year'] ?? '-'})',
-                              subtitle: '${item['institution'] ?? '-'}',
-                            ),
-                          )
-                          .toList(),
-                    ),
-            ),
-            const SizedBox(height: 12),
-            _SectionCard(
-              title: 'Certifications',
-              child: certifications.isEmpty
-                  ? const Text(
-                      'No certifications available yet.',
-                      style: TextStyle(color: Color(0xFF4E6388)),
-                    )
-                  : Column(
-                      children: certifications
-                          .map(
-                            (item) => _DetailTile(
-                              title: '${item['name'] ?? '-'} (${item['year'] ?? '-'})',
-                              subtitle: '${item['issuer'] ?? '-'}',
-                            ),
-                          )
-                          .toList(),
-                    ),
-            ),
-            const SizedBox(height: 14),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _openEditProfile,
-                icon: const Icon(Icons.edit_rounded),
-                label: const Text('Edit Profile'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1E4EA8),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  _SectionCard(
+                    title: 'Skills',
+                    child: skills.isEmpty
+                        ? const Text(
+                            'No skills available yet.',
+                            style: TextStyle(color: Color(0xFF4E6388)),
+                          )
+                        : Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: skills
+                                .map(
+                                  (skill) => Chip(
+                                    label: Text(skill),
+                                    backgroundColor: const Color(0xFFE9F0FF),
+                                    labelStyle: const TextStyle(
+                                      color: Color(0xFF1E4EA8),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                    side: BorderSide.none,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SectionCard(
+                    title: 'Experience',
+                    child: experience.isEmpty
+                        ? const Text(
+                            'No experience available yet.',
+                            style: TextStyle(color: Color(0xFF4E6388)),
+                          )
+                        : Column(
+                            children: experience
+                                .map(
+                                  (item) => _DetailTile(
+                                    title:
+                                        '${item['job_title'] ?? item['title'] ?? '-'} - ${item['company'] ?? '-'}',
+                                    subtitle:
+                                        '${item['start_date'] ?? '-'} to ${item['end_date'] ?? '-'}\n${item['description'] ?? '-'}',
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SectionCard(
+                    title: 'Education',
+                    child: education.isEmpty
+                        ? const Text(
+                            'No education available yet.',
+                            style: TextStyle(color: Color(0xFF4E6388)),
+                          )
+                        : Column(
+                            children: education
+                                .map(
+                                  (item) => _DetailTile(
+                                    title:
+                                        '${item['degree'] ?? '-'} (${item['year'] ?? '-'})',
+                                    subtitle: '${item['institution'] ?? '-'}',
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                  ),
+                  const SizedBox(height: 12),
+                  _SectionCard(
+                    title: 'Certifications',
+                    child: certifications.isEmpty
+                        ? const Text(
+                            'No certifications available yet.',
+                            style: TextStyle(color: Color(0xFF4E6388)),
+                          )
+                        : Column(
+                            children: certifications
+                                .map(
+                                  (item) => _DetailTile(
+                                    title:
+                                        '${item['name'] ?? '-'} (${item['year'] ?? '-'})',
+                                    subtitle: '${item['issuer'] ?? '-'}',
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _openEditProfile,
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.edit_rounded),
+                      label: Text(_isSaving ? 'Saving...' : 'Edit Profile'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF1E4EA8),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -214,11 +331,13 @@ class _ProfileHeaderCard extends StatelessWidget {
 
     final safeName = (name == null || name.isEmpty) ? 'User Name' : name;
     final safeEmail = (email == null || email.isEmpty) ? 'No email yet' : email;
-    final safeHeadline =
-        (headline == null || headline.isEmpty) ? 'Headline not available yet' : headline;
+    final safeHeadline = (headline == null || headline.isEmpty)
+        ? 'Headline not available yet'
+        : headline;
 
-    final initials =
-        safeName.isNotEmpty ? safeName.substring(0, 1).toUpperCase() : 'U';
+    final initials = safeName.isNotEmpty
+        ? safeName.substring(0, 1).toUpperCase()
+        : 'U';
 
     return Container(
       width: double.infinity,
@@ -286,10 +405,7 @@ class _ProfileHeaderCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.child,
-  });
+  const _SectionCard({required this.title, required this.child});
 
   final String title;
   final Widget child;
@@ -324,10 +440,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _DetailTile extends StatelessWidget {
-  const _DetailTile({
-    required this.title,
-    required this.subtitle,
-  });
+  const _DetailTile({required this.title, required this.subtitle});
 
   final String title;
   final String subtitle;

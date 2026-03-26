@@ -1,5 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../../../core/config/supabase_config.dart';
+import '../../../../core/services/cv_processing_service.dart';
+import '../../../../core/services/cv_upload_service.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class UploadCvScreen extends StatefulWidget {
@@ -10,8 +15,14 @@ class UploadCvScreen extends StatefulWidget {
 }
 
 class _UploadCvScreenState extends State<UploadCvScreen> {
+  final CvUploadService _cvUploadService = CvUploadService();
+  final CvProcessingService _cvProcessingService = CvProcessingService();
+
   PlatformFile? _selectedFile;
   bool _isPicking = false;
+  bool _isUploading = false;
+  String _statusMessage = 'Your CV analysis status will appear here.';
+  String? _errorMessage;
 
   Future<void> _pickFile() async {
     setState(() => _isPicking = true);
@@ -19,12 +30,15 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx'],
-        withData: false,
+        withData: true,
       );
 
       if (result != null && result.files.isNotEmpty) {
-        // Replaces any previously selected file, enforcing one-CV selection.
-        setState(() => _selectedFile = result.files.first);
+        setState(() {
+          _selectedFile = result.files.first;
+          _errorMessage = null;
+          _statusMessage = 'CV selected and ready to upload.';
+        });
       }
     } finally {
       if (mounted) {
@@ -34,12 +48,11 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
   }
 
   void _removeSelectedFile() {
-    setState(() => _selectedFile = null);
-  }
-
-  Map<String, dynamic> _parsedProfileFromCv() {
-    // TODO: Replace this with parsed JSON returned by your backend after CV upload.
-    return <String, dynamic>{};
+    setState(() {
+      _selectedFile = null;
+      _errorMessage = null;
+      _statusMessage = 'Your CV analysis status will appear here.';
+    });
   }
 
   String _formatSize(int? bytes) {
@@ -55,6 +68,82 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  Future<void> _uploadCv() async {
+    final selectedFile = _selectedFile;
+    if (selectedFile == null) {
+      return;
+    }
+
+    if (!SupabaseConfig.isConfigured) {
+      setState(() {
+        _errorMessage = 'Supabase is not configured. CV upload is unavailable.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isUploading = true;
+      _errorMessage = null;
+      _statusMessage = 'Uploading your CV...';
+    });
+
+    try {
+      final uploadResult = await _cvUploadService.uploadCv(selectedFile);
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw AuthException('No signed-in user found.');
+      }
+
+      setState(() {
+        _statusMessage = 'CV uploaded. Processing your profile...';
+      });
+
+      await _cvProcessingService.processCv(
+        userId: userId,
+        cvUploadId: uploadResult.cvUploadId,
+        storagePath: uploadResult.storagePath,
+        originalFilename: uploadResult.originalFilename,
+      );
+
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _statusMessage = 'CV uploaded and processed successfully.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('CV uploaded and processed successfully.')),
+      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => const ProfileScreen()));
+    } on StorageException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } on PostgrestException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } on AuthException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isUploading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasFile = _selectedFile != null;
@@ -68,10 +157,7 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFF2F6FF),
-              Color(0xFFEAF1FF),
-            ],
+            colors: [Color(0xFFF2F6FF), Color(0xFFEAF1FF)],
           ),
         ),
         child: SafeArea(
@@ -139,15 +225,17 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.upload_file_rounded),
                         label: Text(
                           _isPicking
                               ? 'Choosing...'
                               : hasFile
-                                  ? 'Choose Another CV'
-                                  : 'Choose File',
+                              ? 'Choose Another CV'
+                              : 'Choose File',
                         ),
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 48),
@@ -182,7 +270,10 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.info_outline_rounded, color: Color(0xFF2D5EBA)),
+                      const Icon(
+                        Icons.info_outline_rounded,
+                        color: Color(0xFF2D5EBA),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -205,10 +296,10 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: const Color(0xFFD8E4FF)),
                   ),
-                  child: const Column(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Processing Status',
                         style: TextStyle(
                           color: Color(0xFF1A3E83),
@@ -216,14 +307,25 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      SizedBox(height: 6),
+                      const SizedBox(height: 6),
                       Text(
-                        'Your CV analysis status will appear here.',
-                        style: TextStyle(
+                        _statusMessage,
+                        style: const TextStyle(
                           color: Color(0xFF5B7199),
                           fontSize: 13,
                         ),
                       ),
+                      if (_errorMessage != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            color: Color(0xFFB42318),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -231,16 +333,7 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                 SizedBox(
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: hasFile
-                        ? () {
-                            final parsedProfile = _parsedProfileFromCv();
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => ProfileScreen(profile: parsedProfile),
-                              ),
-                            );
-                          }
-                        : null,
+                    onPressed: hasFile && !_isUploading ? _uploadCv : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1E4EA8),
                       foregroundColor: Colors.white,
@@ -249,9 +342,12 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Upload CV',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    child: Text(
+                      _isUploading ? 'Uploading...' : 'Upload CV',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
