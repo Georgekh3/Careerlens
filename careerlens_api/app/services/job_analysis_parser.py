@@ -3,15 +3,24 @@ import json
 import requests
 
 from app.config import settings
+from app.schemas.job_analysis import JobAnalysisResult
 from app.schemas.profile import StructuredProfile
 
 
-class ProfileParser:
-    def parse_to_profile(self, extracted_text: str) -> StructuredProfile:
+class JobAnalysisParser:
+    def analyze(
+        self,
+        *,
+        profile: StructuredProfile,
+        raw_job_text: str,
+        title: str,
+        company: str,
+        location: str,
+    ) -> JobAnalysisResult:
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY is not configured.")
 
-        schema = StructuredProfile.model_json_schema()
+        schema = JobAnalysisResult.model_json_schema()
         payload = {
             "model": settings.openai_model,
             "input": [
@@ -21,9 +30,10 @@ class ProfileParser:
                         {
                             "type": "input_text",
                             "text": (
-                                "Extract a structured professional profile from the CV text. "
-                                "Return only data grounded in the CV. "
-                                "Use empty strings or empty arrays when information is missing."
+                                "You are analyzing how well a candidate profile matches a job "
+                                "description. Return only structured JSON that matches the schema. "
+                                "Use evidence from the provided profile and job description. "
+                                "Do not invent qualifications."
                             ),
                         }
                     ],
@@ -33,7 +43,13 @@ class ProfileParser:
                     "content": [
                         {
                             "type": "input_text",
-                            "text": f"CV text:\n{extracted_text}",
+                            "text": (
+                                f"Candidate profile:\n{profile.model_dump_json(indent=2)}\n\n"
+                                f"Job title: {title}\n"
+                                f"Company: {company}\n"
+                                f"Location: {location}\n\n"
+                                f"Job description:\n{raw_job_text}"
+                            ),
                         }
                     ],
                 },
@@ -41,7 +57,7 @@ class ProfileParser:
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": "structured_profile",
+                    "name": "job_analysis_result",
                     "schema": schema,
                     "strict": True,
                 }
@@ -59,12 +75,12 @@ class ProfileParser:
         )
         if not response.ok:
             raise RuntimeError(
-                f"OpenAI responses API error {response.status_code}: {response.text}"
+                f"OpenAI job analysis error {response.status_code}: {response.text}"
             )
-        response_json = response.json()
 
+        response_json = response.json()
         parsed_json = self._extract_output_json(response_json)
-        return StructuredProfile.model_validate(parsed_json)
+        return JobAnalysisResult.model_validate(parsed_json)
 
     def _extract_output_json(self, response_json: dict) -> dict:
         if isinstance(response_json.get("output_parsed"), dict):

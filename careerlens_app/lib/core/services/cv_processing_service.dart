@@ -4,8 +4,20 @@ import 'package:http/http.dart' as http;
 
 import '../config/supabase_config.dart';
 
+class CvProcessingResult {
+  const CvProcessingResult({
+    required this.message,
+    required this.profileSaved,
+    required this.versionCreated,
+  });
+
+  final String message;
+  final bool profileSaved;
+  final bool versionCreated;
+}
+
 class CvProcessingService {
-  Future<void> processCv({
+  Future<CvProcessingResult> processCv({
     required String userId,
     required String cvUploadId,
     required String storagePath,
@@ -31,5 +43,12 @@ class CvProcessingService {
         'CV processing failed with status ${response.statusCode}: ${response.body}',
       );
     }
+
+    final payload = jsonDecode(response.body) as Map<String, dynamic>;
+    return CvProcessingResult(
+      message: payload['message'] as String? ?? 'CV processed successfully.',
+      profileSaved: payload['profile_saved'] as bool? ?? false,
+      versionCreated: payload['version_created'] as bool? ?? false,
+    );
   }
 }

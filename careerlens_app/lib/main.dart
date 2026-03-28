@@ -3,7 +3,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/supabase_config.dart';
+import 'core/services/profile_service.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
+import 'features/auth/presentation/screens/resume_entry_screen.dart';
 import 'features/auth/presentation/screens/upload_cv_screen.dart';
 
 Future<void> main() async {
@@ -54,9 +56,32 @@ class _AuthBootstrap extends StatelessWidget {
       builder: (context, snapshot) {
         final session = snapshot.data?.session ?? client.auth.currentSession;
         if (session != null) {
-          return const UploadCvScreen();
+          return const _SignedInHome();
         }
         return const LoginScreen();
+      },
+    );
+  }
+}
+
+class _SignedInHome extends StatelessWidget {
+  const _SignedInHome();
+
+  @override
+  Widget build(BuildContext context) {
+    final profileService = ProfileService();
+
+    return FutureBuilder<bool>(
+      future: profileService.hasExistingProfileData(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final hasExistingProfile = snapshot.data ?? false;
+        return ResumeEntryScreen(hasExistingProfile: hasExistingProfile);
       },
     );
   }

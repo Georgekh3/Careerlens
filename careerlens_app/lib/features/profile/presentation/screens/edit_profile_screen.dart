@@ -18,6 +18,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _fullNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _headlineController;
+  late final TextEditingController _locationController;
   late final TextEditingController _summaryController;
   late final TextEditingController _skillsController;
 
@@ -33,6 +34,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _headlineController = TextEditingController(
       text: widget.initialProfile['headline'] as String? ?? '',
     );
+    _locationController = TextEditingController(
+      text: widget.initialProfile['location'] as String? ?? '',
+    );
     _summaryController = TextEditingController(
       text: widget.initialProfile['summary'] as String? ?? '',
     );
@@ -47,6 +51,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _fullNameController.dispose();
     _emailController.dispose();
     _headlineController.dispose();
+    _locationController.dispose();
     _summaryController.dispose();
     _skillsController.dispose();
     super.dispose();
@@ -68,6 +73,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       'full_name': _fullNameController.text.trim(),
       'email': _emailController.text.trim(),
       'headline': _headlineController.text.trim(),
+      'location': _locationController.text.trim(),
       'summary': _summaryController.text.trim(),
       'skills': parsedSkills,
     };
@@ -128,6 +134,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   }
                   return null;
                 },
+              ),
+              const SizedBox(height: 12),
+              _InputField(
+                label: 'Location',
+                controller: _locationController,
+                validator: (value) => null,
               ),
               const SizedBox(height: 12),
               _InputField(

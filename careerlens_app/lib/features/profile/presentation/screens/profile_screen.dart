@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/services/profile_service.dart';
+import '../../../job_analysis/presentation/screens/job_analysis_screen.dart';
 import 'edit_profile_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -159,6 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final education = _asMapList(_profile['education']);
     final certifications = _asMapList(_profile['certifications']);
     final summary = (_profile['summary'] as String?)?.trim();
+    final location = (_profile['location'] as String?)?.trim();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FF),
@@ -185,6 +187,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 12),
                   ],
                   _ProfileHeaderCard(profile: _profile),
+                  const SizedBox(height: 12),
+                  _SectionCard(
+                    title: 'Overview',
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        _MetaBadge(
+                          icon: Icons.location_on_outlined,
+                          text: (location == null || location.isEmpty)
+                              ? 'Location not available yet'
+                              : location,
+                        ),
+                        _MetaBadge(
+                          icon: Icons.psychology_alt_outlined,
+                          text: '${skills.length} skill${skills.length == 1 ? '' : 's'} identified',
+                        ),
+                        _MetaBadge(
+                          icon: Icons.work_outline_rounded,
+                          text:
+                              '${experience.length} experience item${experience.length == 1 ? '' : 's'}',
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _SectionCard(
                     title: 'Summary / About',
@@ -240,6 +267,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                         '${item['job_title'] ?? item['title'] ?? '-'} - ${item['company'] ?? '-'}',
                                     subtitle:
                                         '${item['start_date'] ?? '-'} to ${item['end_date'] ?? '-'}\n${item['description'] ?? '-'}',
+                                    footer: _buildFooter(
+                                      evidence: item['evidence']?.toString(),
+                                      confidence: item['confidence'],
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -260,6 +291,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     title:
                                         '${item['degree'] ?? '-'} (${item['year'] ?? '-'})',
                                     subtitle: '${item['institution'] ?? '-'}',
+                                    footer: _buildFooter(
+                                      evidence: item['evidence']?.toString(),
+                                      confidence: item['confidence'],
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -280,6 +315,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     title:
                                         '${item['name'] ?? '-'} (${item['year'] ?? '-'})',
                                     subtitle: '${item['issuer'] ?? '-'}',
+                                    footer: _buildFooter(
+                                      evidence: item['evidence']?.toString(),
+                                      confidence: item['confidence'],
+                                    ),
                                   ),
                                 )
                                 .toList(),
@@ -311,9 +350,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const JobAnalysisScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.analytics_outlined),
+                      label: const Text('Continue to Analyze Job Offer'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF1E4EA8),
+                        side: const BorderSide(color: Color(0xFFBCD0FF)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget? _buildFooter({
+    required String? evidence,
+    required dynamic confidence,
+  }) {
+    final safeEvidence = evidence?.trim() ?? '';
+    final confidenceValue = confidence is num ? confidence.toDouble() : null;
+    if (safeEvidence.isEmpty && confidenceValue == null) {
+      return null;
+    }
+
+    final footerParts = <String>[];
+    if (safeEvidence.isNotEmpty) {
+      footerParts.add('Evidence: $safeEvidence');
+    }
+    if (confidenceValue != null) {
+      footerParts.add(
+        'Confidence: ${(confidenceValue * 100).clamp(0, 100).toStringAsFixed(0)}%',
+      );
+    }
+
+    return Text(
+      footerParts.join('\n'),
+      style: const TextStyle(
+        color: Color(0xFF6B7FA6),
+        fontSize: 12,
+        height: 1.35,
+      ),
     );
   }
 }
@@ -328,6 +420,7 @@ class _ProfileHeaderCard extends StatelessWidget {
     final name = (profile['full_name'] as String?)?.trim();
     final email = (profile['email'] as String?)?.trim();
     final headline = (profile['headline'] as String?)?.trim();
+    final location = (profile['location'] as String?)?.trim();
 
     final safeName = (name == null || name.isEmpty) ? 'User Name' : name;
     final safeEmail = (email == null || email.isEmpty) ? 'No email yet' : email;
@@ -395,6 +488,17 @@ class _ProfileHeaderCard extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
+                if (location != null && location.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    location,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -440,10 +544,15 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _DetailTile extends StatelessWidget {
-  const _DetailTile({required this.title, required this.subtitle});
+  const _DetailTile({
+    required this.title,
+    required this.subtitle,
+    this.footer,
+  });
 
   final String title;
   final String subtitle;
+  final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
@@ -467,6 +576,51 @@ class _DetailTile extends StatelessWidget {
               color: Color(0xFF4E6388),
               fontSize: 13,
               height: 1.35,
+            ),
+          ),
+          if (footer != null) ...[
+            const SizedBox(height: 6),
+            footer!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MetaBadge extends StatelessWidget {
+  const _MetaBadge({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F6FF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD7E3FF)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF1E4EA8)),
+          const SizedBox(width: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF2C4676),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

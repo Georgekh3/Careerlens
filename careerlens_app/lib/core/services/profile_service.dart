@@ -21,6 +21,24 @@ class ProfileService {
     return _rowToEditableProfile(Map<String, dynamic>.from(row));
   }
 
+  Future<bool> hasExistingProfileData() async {
+    final profile = await fetchCurrentUserProfile();
+    final headline = (profile['headline'] as String? ?? '').trim();
+    final summary = (profile['summary'] as String? ?? '').trim();
+    final skills = profile['skills'];
+    final experience = profile['experience'];
+    final education = profile['education'];
+    final certifications = profile['certifications'];
+
+    final hasListData =
+        (skills is List && skills.isNotEmpty) ||
+        (experience is List && experience.isNotEmpty) ||
+        (education is List && education.isNotEmpty) ||
+        (certifications is List && certifications.isNotEmpty);
+
+    return headline.isNotEmpty || summary.isNotEmpty || hasListData;
+  }
+
   Future<Map<String, dynamic>> saveCurrentUserProfile(
     Map<String, dynamic> profile,
   ) async {
@@ -64,6 +82,7 @@ class ProfileService {
       'email': row['email'] ?? '',
       'avatar_url': row['avatar_url'],
       'headline': basics['headline'] ?? '',
+      'location': basics['location'] ?? '',
       'summary': basics['summary'] ?? '',
       'skills': _extractSkillNames(authoritative['skills']),
       'experience': _asMapList(authoritative['experience']),
@@ -78,6 +97,7 @@ class ProfileService {
   }) {
     final basics = _asMap(currentAuthoritative['basics']);
     basics['headline'] = (profile['headline'] as String? ?? '').trim();
+    basics['location'] = (profile['location'] as String? ?? '').trim();
     basics['summary'] = (profile['summary'] as String? ?? '').trim();
 
     return <String, dynamic>{

@@ -84,7 +84,7 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
     setState(() {
       _isUploading = true;
       _errorMessage = null;
-      _statusMessage = 'Uploading your CV...';
+      _statusMessage = 'Uploading your CV to secure storage...';
     });
 
     try {
@@ -95,10 +95,10 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
       }
 
       setState(() {
-        _statusMessage = 'CV uploaded. Processing your profile...';
+        _statusMessage = 'CV uploaded. Extracting and analyzing your profile...';
       });
 
-      await _cvProcessingService.processCv(
+      final result = await _cvProcessingService.processCv(
         userId: userId,
         cvUploadId: uploadResult.cvUploadId,
         storagePath: uploadResult.storagePath,
@@ -109,10 +109,10 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
         return;
       }
       setState(() {
-        _statusMessage = 'CV uploaded and processed successfully.';
+        _statusMessage = result.message;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('CV uploaded and processed successfully.')),
+        SnackBar(content: Text(result.message)),
       );
       Navigator.of(
         context,
