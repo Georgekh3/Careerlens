@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/config/supabase_config.dart';
 import '../../../../core/services/cv_processing_service.dart';
 import '../../../../core/services/cv_upload_service.dart';
+import '../../../../core/services/service_exception.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class UploadCvScreen extends StatefulWidget {
@@ -76,7 +77,8 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
 
     if (!SupabaseConfig.isConfigured) {
       setState(() {
-        _errorMessage = 'Supabase is not configured. CV upload is unavailable.';
+        _errorMessage =
+            'Supabase is not configured yet, so CV upload is unavailable.';
       });
       return;
     }
@@ -95,7 +97,8 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
       }
 
       setState(() {
-        _statusMessage = 'CV uploaded. Extracting and analyzing your profile...';
+        _statusMessage =
+            'CV uploaded. Extracting and analyzing your profile...';
       });
 
       final result = await _cvProcessingService.processCv(
@@ -111,9 +114,9 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
       setState(() {
         _statusMessage = result.message;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result.message)));
       Navigator.of(
         context,
       ).push(MaterialPageRoute<void>(builder: (_) => const ProfileScreen()));
@@ -121,22 +124,45 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.message);
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback:
+              'Your CV could not be uploaded right now. Please try again.',
+        );
+      });
     } on PostgrestException catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.message);
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback:
+              'We could not save your CV details right now. Please try again.',
+        );
+      });
     } on AuthException catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.message);
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback: 'Your session has expired. Please sign in again.',
+        );
+      });
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.toString());
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback:
+              'We could not finish processing this CV. Please try again in a moment.',
+        );
+      });
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);
@@ -161,7 +187,7 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -185,6 +211,8 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                   ],
                 ),
                 const SizedBox(height: 18),
+                const _ProgressStrip(),
+                const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(18),
                   decoration: BoxDecoration(
@@ -313,23 +341,49 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                         style: const TextStyle(
                           color: Color(0xFF5B7199),
                           fontSize: 13,
+                          height: 1.4,
                         ),
                       ),
                       if (_errorMessage != null) ...[
                         const SizedBox(height: 8),
-                        Text(
-                          _errorMessage!,
-                          style: const TextStyle(
-                            color: Color(0xFFB42318),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFF1F3),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFF3C0C7)),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 1),
+                                child: Icon(
+                                  Icons.error_outline_rounded,
+                                  color: Color(0xFFB42318),
+                                  size: 16,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _errorMessage!,
+                                  style: const TextStyle(
+                                    color: Color(0xFFB42318),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ],
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(height: 18),
                 SizedBox(
                   height: 52,
                   child: ElevatedButton(
@@ -351,9 +405,60 @@ class _UploadCvScreenState extends State<UploadCvScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressStrip extends StatelessWidget {
+  const _ProgressStrip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD8E4FF)),
+      ),
+      child: const Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _StepChip(label: '1. Upload'),
+          _StepChip(label: '2. Extract'),
+          _StepChip(label: '3. Build Profile'),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepChip extends StatelessWidget {
+  const _StepChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F6FF),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Color(0xFF1E4EA8),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );

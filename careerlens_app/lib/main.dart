@@ -3,10 +3,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/config/supabase_config.dart';
-import 'core/services/profile_service.dart';
 import 'features/auth/presentation/screens/login_screen.dart';
-import 'features/auth/presentation/screens/resume_entry_screen.dart';
-import 'features/auth/presentation/screens/upload_cv_screen.dart';
+import 'features/dashboard/presentation/screens/dashboard_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,7 +50,10 @@ class _AuthBootstrap extends StatelessWidget {
 
     return StreamBuilder<AuthState>(
       stream: client.auth.onAuthStateChange,
-      initialData: AuthState(AuthChangeEvent.initialSession, client.auth.currentSession),
+      initialData: AuthState(
+        AuthChangeEvent.initialSession,
+        client.auth.currentSession,
+      ),
       builder: (context, snapshot) {
         final session = snapshot.data?.session ?? client.auth.currentSession;
         if (session != null) {
@@ -69,20 +70,6 @@ class _SignedInHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profileService = ProfileService();
-
-    return FutureBuilder<bool>(
-      future: profileService.hasExistingProfileData(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final hasExistingProfile = snapshot.data ?? false;
-        return ResumeEntryScreen(hasExistingProfile: hasExistingProfile);
-      },
-    );
+    return const DashboardScreen();
   }
 }

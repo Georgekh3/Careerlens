@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
+import 'service_exception.dart';
 
 class CoachingQuestion {
   const CoachingQuestion({
@@ -80,7 +81,9 @@ class TurnEvaluation {
       performanceRating: json['performance_rating'] as String? ?? '',
       readinessScore: json['readiness_score'] as int? ?? 0,
       scores: TurnEvaluationScores.fromJson(
-        Map<String, dynamic>.from(json['scores'] as Map? ?? const <String, dynamic>{}),
+        Map<String, dynamic>.from(
+          json['scores'] as Map? ?? const <String, dynamic>{},
+        ),
       ),
     );
   }
@@ -107,7 +110,9 @@ class InterviewTurn {
       turnId: json['turn_id'] as String? ?? '',
       turnNo: json['turn_no'] as int? ?? 0,
       question: CoachingQuestion.fromJson(
-        Map<String, dynamic>.from(json['question'] as Map? ?? const <String, dynamic>{}),
+        Map<String, dynamic>.from(
+          json['question'] as Map? ?? const <String, dynamic>{},
+        ),
       ),
       answer: json['answer'] as String? ?? '',
       evaluation: evaluationJson is Map
@@ -157,7 +162,9 @@ class InterviewCoachingSession {
       if (value is List) {
         return value
             .whereType<Map>()
-            .map((item) => InterviewTurn.fromJson(Map<String, dynamic>.from(item)))
+            .map(
+              (item) => InterviewTurn.fromJson(Map<String, dynamic>.from(item)),
+            )
             .toList();
       }
       return <InterviewTurn>[];
@@ -171,7 +178,9 @@ class InterviewCoachingSession {
       sessionSummary: json['session_summary'] as String? ?? '',
       focusAreas: stringList(json['focus_areas']),
       currentQuestion: currentQuestionJson is Map
-          ? CoachingQuestion.fromJson(Map<String, dynamic>.from(currentQuestionJson))
+          ? CoachingQuestion.fromJson(
+              Map<String, dynamic>.from(currentQuestionJson),
+            )
           : null,
       turns: turnList(json['turns']),
       isSessionComplete: json['is_session_complete'] as bool? ?? false,
@@ -192,7 +201,9 @@ class InterviewCoachingResponse {
     return InterviewCoachingResponse(
       message: json['message'] as String? ?? '',
       session: InterviewCoachingSession.fromJson(
-        Map<String, dynamic>.from(json['session'] as Map? ?? const <String, dynamic>{}),
+        Map<String, dynamic>.from(
+          json['session'] as Map? ?? const <String, dynamic>{},
+        ),
       ),
     );
   }
@@ -241,14 +252,41 @@ class InterviewCoachingService {
     );
   }
 
+  Future<InterviewCoachingSession> fetchSession({
+    required String sessionId,
+  }) async {
+    final userId = _currentUserId();
+    final response = await http.get(
+      Uri.parse(
+        '${SupabaseConfig.apiBaseUrl}/interview/session/$sessionId?user_id=$userId',
+      ),
+      headers: const {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ServiceErrorMapper.fromHttpResponse(
+        response,
+        defaultMessage: 'We could not load that interview session right now.',
+      );
+    }
+
+    return InterviewCoachingSession.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
   String _currentUserId() {
     if (SupabaseConfig.apiBaseUrl.isEmpty) {
-      throw StateError('API_BASE_URL is not configured.');
+      throw const ServiceException(
+        'The app is not connected to the backend yet. Check your API configuration and try again.',
+      );
     }
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
-      throw AuthException('No signed-in user found.');
+      throw const ServiceException(
+        'Your session has expired. Please sign in again.',
+      );
     }
     return userId;
   }
@@ -258,7 +296,10 @@ class InterviewCoachingService {
     required String errorPrefix,
   }) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError('$errorPrefix with status ${response.statusCode}: ${response.body}');
+      throw ServiceErrorMapper.fromHttpResponse(
+        response,
+        defaultMessage: errorPrefix,
+      );
     }
 
     return InterviewCoachingResponse.fromJson(

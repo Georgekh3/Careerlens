@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/job_analysis_service.dart';
+import '../../../../core/services/service_exception.dart';
 import '../../../interview_coaching/presentation/screens/interview_coaching_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
@@ -57,7 +58,13 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.toString());
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback:
+              'We could not analyze this job offer right now. Please try again.',
+        );
+      });
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -82,7 +89,10 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
             },
             child: const Text(
               'Profile',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -99,6 +109,15 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const Text(
+                      'Paste the role you want to compare against your saved profile. CareerLens will score the match and point out the biggest gaps.',
+                      style: TextStyle(
+                        color: Color(0xFF5B7199),
+                        fontSize: 13,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     _InputField(
                       label: 'Location',
                       controller: _locationController,
@@ -145,12 +164,37 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
                     ),
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 12),
-                      Text(
-                        _errorMessage!,
-                        style: const TextStyle(
-                          color: Color(0xFFB42318),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF3C0C7)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Padding(
+                              padding: EdgeInsets.only(top: 1),
+                              child: Icon(
+                                Icons.error_outline_rounded,
+                                color: Color(0xFFB42318),
+                                size: 16,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                  color: Color(0xFFB42318),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.4,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -159,6 +203,8 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
               ),
               if (_result != null) ...[
                 const SizedBox(height: 16),
+                _ResultHeader(result: _result!),
+                const SizedBox(height: 12),
                 _AnalysisResultCard(result: _result!),
                 const SizedBox(height: 16),
                 SizedBox(
@@ -169,8 +215,9 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
                         MaterialPageRoute<void>(
                           builder: (_) => InterviewCoachingScreen(
                             initialLocation: _locationController.text.trim(),
-                            initialJobDescription:
-                                _jobDescriptionController.text.trim(),
+                            initialJobDescription: _jobDescriptionController
+                                .text
+                                .trim(),
                           ),
                         ),
                       );
@@ -207,6 +254,76 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ResultHeader extends StatelessWidget {
+  const _ResultHeader({required this.result});
+
+  final JobAnalysisResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final score = result.overallFitScore;
+    final label = score >= 75
+        ? 'Strong Match'
+        : score >= 50
+        ? 'Moderate Match'
+        : 'Gap Detected';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF204B97), Color(0xFF173C80)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.insights_outlined,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'CareerLens compared your structured profile against this role and ranked the clearest overlaps and biggest gaps.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.88),
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -254,7 +371,11 @@ class _AnalysisResultCard extends StatelessWidget {
           title: 'Score Breakdown',
           child: Column(
             children: [
-              _ScoreRow(label: 'Skills Match', value: result.skillsMatchScore, max: 40),
+              _ScoreRow(
+                label: 'Skills Match',
+                value: result.skillsMatchScore,
+                max: 40,
+              ),
               _ScoreRow(
                 label: 'Experience Match',
                 value: result.experienceMatchScore,
@@ -276,12 +397,18 @@ class _AnalysisResultCard extends StatelessWidget {
         const SizedBox(height: 12),
         _SectionCard(
           title: 'Matched Skills',
-          child: _BulletList(items: result.matchedSkills, emptyLabel: 'No matched skills.'),
+          child: _BulletList(
+            items: result.matchedSkills,
+            emptyLabel: 'No matched skills.',
+          ),
         ),
         const SizedBox(height: 12),
         _SectionCard(
           title: 'Missing Skills',
-          child: _BulletList(items: result.missingSkills, emptyLabel: 'No missing skills.'),
+          child: _BulletList(
+            items: result.missingSkills,
+            emptyLabel: 'No missing skills.',
+          ),
         ),
         const SizedBox(height: 12),
         _SectionCard(
@@ -314,7 +441,10 @@ class _AnalysisResultCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              _BulletList(items: result.strengths, emptyLabel: 'No strengths listed.'),
+              _BulletList(
+                items: result.strengths,
+                emptyLabel: 'No strengths listed.',
+              ),
               const SizedBox(height: 12),
               const Text(
                 'Risks',
@@ -335,10 +465,7 @@ class _AnalysisResultCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.child,
-  });
+  const _SectionCard({required this.title, required this.child});
 
   final String title;
   final Widget child;
@@ -425,10 +552,7 @@ class _InputField extends StatelessWidget {
 }
 
 class _BulletList extends StatelessWidget {
-  const _BulletList({
-    required this.items,
-    required this.emptyLabel,
-  });
+  const _BulletList({required this.items, required this.emptyLabel});
 
   final List<String> items;
   final String emptyLabel;

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../config/supabase_config.dart';
+import 'service_exception.dart';
 
 class CvProcessingResult {
   const CvProcessingResult({
@@ -24,7 +25,9 @@ class CvProcessingService {
     required String originalFilename,
   }) async {
     if (SupabaseConfig.apiBaseUrl.isEmpty) {
-      throw StateError('API_BASE_URL is not configured.');
+      throw const ServiceException(
+        'The app is not connected to the backend yet. Check your API configuration and try again.',
+      );
     }
 
     final response = await http.post(
@@ -39,8 +42,10 @@ class CvProcessingService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError(
-        'CV processing failed with status ${response.statusCode}: ${response.body}',
+      throw ServiceErrorMapper.fromHttpResponse(
+        response,
+        defaultMessage:
+            'We could not process this CV right now. Please try again.',
       );
     }
 

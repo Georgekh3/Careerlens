@@ -179,14 +179,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (_errorMessage != null) ...[
                     _SectionCard(
                       title: 'Status',
-                      child: Text(
-                        _errorMessage!,
-                        style: const TextStyle(color: Color(0xFFB42318)),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1F3),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFF3C0C7)),
+                        ),
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(
+                            color: Color(0xFFB42318),
+                            height: 1.4,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
                   ],
                   _ProfileHeaderCard(profile: _profile),
+                  const SizedBox(height: 12),
+                  _SectionCard(
+                    title: 'Profile Health',
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _MetricTile(
+                            label: 'Skills',
+                            value: '${skills.length}',
+                            icon: Icons.psychology_alt_outlined,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _MetricTile(
+                            label: 'Experience',
+                            value: '${experience.length}',
+                            icon: Icons.work_outline_rounded,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _MetricTile(
+                            label: 'Education',
+                            value: '${education.length}',
+                            icon: Icons.school_outlined,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _SectionCard(
                     title: 'Overview',
@@ -537,6 +579,54 @@ class _SectionCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           child,
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF7FAFF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFDCE7FF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: const Color(0xFF1E4EA8)),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF163B84),
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF62779E),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

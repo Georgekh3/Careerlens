@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/interview_coaching_service.dart';
+import '../../../../core/services/service_exception.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class InterviewCoachingScreen extends StatefulWidget {
@@ -8,13 +9,16 @@ class InterviewCoachingScreen extends StatefulWidget {
     super.key,
     required this.initialLocation,
     required this.initialJobDescription,
+    this.existingSessionId,
   });
 
   final String initialLocation;
   final String initialJobDescription;
+  final String? existingSessionId;
 
   @override
-  State<InterviewCoachingScreen> createState() => _InterviewCoachingScreenState();
+  State<InterviewCoachingScreen> createState() =>
+      _InterviewCoachingScreenState();
 }
 
 class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
@@ -31,7 +35,12 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _startSession();
+        if (widget.existingSessionId != null &&
+            widget.existingSessionId!.trim().isNotEmpty) {
+          _loadExistingSession();
+        } else {
+          _startSession();
+        }
       }
     });
   }
@@ -45,7 +54,8 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
   Future<void> _startSession() async {
     if (widget.initialJobDescription.trim().length < 20) {
       setState(() {
-        _errorMessage = 'The selected job description is too short for interview coaching.';
+        _errorMessage =
+            'The selected job description is too short for interview coaching.';
       });
       return;
     }
@@ -66,14 +76,58 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
       setState(() {
         _session = response.session;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response.message)));
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.toString());
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback:
+              'We could not start interview coaching right now. Please try again.',
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isStarting = false);
+      }
+    }
+  }
+
+  Future<void> _loadExistingSession() async {
+    final sessionId = widget.existingSessionId;
+    if (sessionId == null || sessionId.trim().isEmpty) {
+      await _startSession();
+      return;
+    }
+
+    setState(() {
+      _isStarting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final session = await _service.fetchSession(sessionId: sessionId);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _session = session;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback:
+              'We could not load that interview session right now. Please try again.',
+        );
+      });
     } finally {
       if (mounted) {
         setState(() => _isStarting = false);
@@ -89,7 +143,9 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
 
     final answer = _answerController.text.trim();
     if (answer.length < 5) {
-      setState(() => _errorMessage = 'Write a fuller answer before submitting.');
+      setState(
+        () => _errorMessage = 'Write a fuller answer before submitting.',
+      );
       return;
     }
 
@@ -110,14 +166,20 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
       setState(() {
         _session = response.session;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(response.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response.message)));
     } catch (error) {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.toString());
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback:
+              'We could not evaluate that answer right now. Please try again.',
+        );
+      });
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -144,7 +206,10 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
             },
             child: const Text(
               'Profile',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -154,6 +219,8 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const _CoachingHero(),
+            const SizedBox(height: 16),
             _SectionCard(
               title: 'Session Context',
               child: Column(
@@ -196,21 +263,82 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
             if (_errorMessage != null)
               _SectionCard(
                 title: 'Status',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 1),
+                          child: Icon(
+                            Icons.error_outline_rounded,
+                            color: Color(0xFFB42318),
+                            size: 16,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(
+                              color: Color(0xFFB42318),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (session == null && !_isStarting) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _startSession,
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Try Again'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF1E4EA8),
+                          side: const BorderSide(color: Color(0xFFBCD0FF)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            if (session == null && !_isStarting && _errorMessage == null)
+              const _SectionCard(
+                title: 'Status',
                 child: Text(
-                  _errorMessage!,
-                  style: const TextStyle(
-                    color: Color(0xFFB42318),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                  'Your coaching session will appear here once the first tailored question is ready.',
+                  style: TextStyle(
+                    color: Color(0xFF38537E),
+                    fontSize: 14,
+                    height: 1.45,
                   ),
                 ),
               ),
             if (session != null) ...[
               _SessionSummaryCard(session: session),
               const SizedBox(height: 12),
-              if (session.turns.isNotEmpty)
-                _TurnsCard(turns: session.turns),
-              if (session.currentQuestion != null && !session.isSessionComplete) ...[
+              if (session.turns.isNotEmpty) _TurnsCard(turns: session.turns),
+              if (session.currentQuestion != null &&
+                  !session.isSessionComplete) ...[
+                const SizedBox(height: 12),
+                const _SectionCard(
+                  title: 'Answer Strategy',
+                  child: Text(
+                    'Keep each answer specific. Use one concrete example, explain your reasoning, and finish with the outcome or lesson learned.',
+                    style: TextStyle(
+                      color: Color(0xFF38537E),
+                      fontSize: 14,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 12),
                 _SectionCard(
                   title: 'Current Question',
@@ -246,15 +374,21 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
                           fillColor: const Color(0xFFF9FBFF),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFD5E2FF)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD5E2FF),
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFFD5E2FF)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFD5E2FF),
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Color(0xFF1E4EA8)),
+                            borderSide: const BorderSide(
+                              color: Color(0xFF1E4EA8),
+                            ),
                           ),
                         ),
                       ),
@@ -314,6 +448,54 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
   }
 }
 
+class _CoachingHero extends StatelessWidget {
+  const _CoachingHero();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF214B98), Color(0xFF173D81)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.record_voice_over_outlined,
+              color: Colors.white,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              'Practice with tailored questions, receive scored feedback, and build readiness turn by turn.',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.9),
+                fontSize: 14,
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SessionSummaryCard extends StatelessWidget {
   const _SessionSummaryCard({required this.session});
 
@@ -357,7 +539,9 @@ class _SessionSummaryCard extends StatelessWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: session.focusAreas.map((item) => _TagChip(text: item)).toList(),
+              children: session.focusAreas
+                  .map((item) => _TagChip(text: item))
+                  .toList(),
             ),
           ],
           if (session.performanceTrend.isNotEmpty) ...[
@@ -377,7 +561,10 @@ class _SessionSummaryCard extends StatelessWidget {
               children: session.performanceTrend
                   .asMap()
                   .entries
-                  .map((entry) => _TagChip(text: 'T${entry.key + 1}: ${entry.value}'))
+                  .map(
+                    (entry) =>
+                        _TagChip(text: 'T${entry.key + 1}: ${entry.value}'),
+                  )
                   .toList(),
             ),
           ],
@@ -394,7 +581,9 @@ class _TurnsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final answeredTurns = turns.where((turn) => turn.answer.trim().isNotEmpty).toList();
+    final answeredTurns = turns
+        .where((turn) => turn.answer.trim().isNotEmpty)
+        .toList();
     if (answeredTurns.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -556,10 +745,7 @@ class _SuggestionsList extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.child,
-  });
+  const _SectionCard({required this.title, required this.child});
 
   final String title;
   final Widget child;
@@ -593,10 +779,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _MetaLine extends StatelessWidget {
-  const _MetaLine({
-    required this.label,
-    required this.value,
-  });
+  const _MetaLine({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -661,10 +844,7 @@ class _TagChip extends StatelessWidget {
 }
 
 class _ScoreRow extends StatelessWidget {
-  const _ScoreRow({
-    required this.label,
-    required this.value,
-  });
+  const _ScoreRow({required this.label, required this.value});
 
   final String label;
   final int value;

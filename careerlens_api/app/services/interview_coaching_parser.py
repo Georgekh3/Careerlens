@@ -1,16 +1,17 @@
 import json
 
-import requests
-
-from app.config import settings
 from app.schemas.interview_coaching import (
     CoachingKickoffResult,
     TurnCoachingResult,
 )
 from app.schemas.profile import StructuredProfile
+from app.services.openai_structured_client import OpenAIStructuredClient
 
 
 class InterviewCoachingParser:
+    def __init__(self, client: OpenAIStructuredClient | None = None):
+        self._client = client or OpenAIStructuredClient()
+
     def generate_kickoff(
         self,
         *,
@@ -29,7 +30,7 @@ class InterviewCoachingParser:
             f"Location: {location}\n\n"
             f"Job description:\n{raw_job_text}"
         )
-        parsed_json = self._call_openai(
+        parsed_json = self._client.parse(
             schema=CoachingKickoffResult.model_json_schema(),
             schema_name="interview_coaching_kickoff",
             system_prompt=system_prompt,
@@ -69,7 +70,7 @@ class InterviewCoachingParser:
             f"Candidate answer:\n{answer_text}\n\n"
             "Prefer a 4-turn interview unless the coverage is already strong or very weak."
         )
-        parsed_json = self._call_openai(
+        parsed_json = self._client.parse(
             schema=TurnCoachingResult.model_json_schema(),
             schema_name="interview_turn_coaching",
             system_prompt=system_prompt,
@@ -77,67 +78,3 @@ class InterviewCoachingParser:
             error_prefix="OpenAI interview turn error",
         )
         return TurnCoachingResult.model_validate(parsed_json)
-
-    def _call_openai(
-        self,
-        *,
-        schema: dict,
-        schema_name: str,
-        system_prompt: str,
-        user_prompt: str,
-        error_prefix: str,
-    ) -> dict:
-        if not settings.openai_api_key:
-            raise RuntimeError("OPENAI_API_KEY is not configured.")
-
-        payload = {
-            "model": settings.openai_model,
-            "input": [
-                {
-                    "role": "system",
-                    "content": [{"type": "input_text", "text": system_prompt}],
-                },
-                {
-                    "role": "user",
-                    "content": [{"type": "input_text", "text": user_prompt}],
-                },
-            ],
-            "text": {
-                "format": {
-                    "type": "json_schema",
-                    "name": schema_name,
-                    "schema": schema,
-                    "strict": True,
-                }
-            },
-        }
-
-        response = requests.post(
-            "https://api.openai.com/v1/responses",
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=90,
-        )
-        if not response.ok:
-            raise RuntimeError(f"{error_prefix} {response.status_code}: {response.text}")
-
-        response_json = response.json()
-        return self._extract_output_json(response_json)
-
-    def _extract_output_json(self, response_json: dict) -> dict:
-        if isinstance(response_json.get("output_parsed"), dict):
-            return response_json["output_parsed"]
-
-        for output_item in response_json.get("output", []):
-            for content_item in output_item.get("content", []):
-                if isinstance(content_item.get("parsed"), dict):
-                    return content_item["parsed"]
-
-                text_value = content_item.get("text")
-                if isinstance(text_value, str) and text_value.strip():
-                    return json.loads(text_value)
-
-        raise ValueError("OpenAI response did not include structured JSON output.")

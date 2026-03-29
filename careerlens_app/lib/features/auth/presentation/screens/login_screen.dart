@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/config/supabase_config.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -30,17 +31,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       final client = Supabase.instance.client;
-      final redirectTo = kIsWeb ? Uri.base.origin : SupabaseConfig.mobileRedirectUrl;
+      final redirectTo = kIsWeb
+          ? Uri.base.origin
+          : SupabaseConfig.mobileRedirectUrl;
 
       await client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectTo,
+        queryParams: const {'prompt': 'select_account'},
       );
     } on AuthException catch (error) {
       setState(() => _errorMessage = error.message);
     } catch (_) {
       setState(() {
-        _errorMessage = 'Google sign-in failed. Check your Supabase redirect URL setup.';
+        _errorMessage =
+            'Google sign-in failed. Check your Supabase redirect URL setup.';
       });
     } finally {
       if (mounted) {
@@ -58,11 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF2E63C5),
-              Color(0xFF1E4EA8),
-              Color(0xFF0F2E6E),
-            ],
+            colors: [Color(0xFF2E63C5), Color(0xFF1E4EA8), Color(0xFF0F2E6E)],
           ),
         ),
         child: SafeArea(
@@ -77,7 +78,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Spacer(),
-                    const Icon(Icons.explore_rounded, size: 60, color: Colors.white),
+                    const Icon(
+                      Icons.explore_rounded,
+                      size: 60,
+                      color: Colors.white,
+                    ),
                     const SizedBox(height: 12),
                     const Text(
                       'CareerLens',
@@ -113,7 +118,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     SizedBox(
                       height: 52,
                       child: ElevatedButton(
-                        onPressed: _isSigningIn ? null : () => _signInWithGoogle(context),
+                        onPressed: _isSigningIn
+                            ? null
+                            : () => _signInWithGoogle(context),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: const Color(0xFF1A1A1A),

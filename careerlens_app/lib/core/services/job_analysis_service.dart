@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
+import 'service_exception.dart';
 
 class JobAnalysisResult {
   const JobAnalysisResult({
@@ -81,12 +82,16 @@ class JobAnalysisService {
     String location = '',
   }) async {
     if (SupabaseConfig.apiBaseUrl.isEmpty) {
-      throw StateError('API_BASE_URL is not configured.');
+      throw const ServiceException(
+        'The app is not connected to the backend yet. Check your API configuration and try again.',
+      );
     }
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
-      throw AuthException('No signed-in user found.');
+      throw const ServiceException(
+        'Your session has expired. Please sign in again.',
+      );
     }
 
     final response = await http.post(
@@ -103,8 +108,10 @@ class JobAnalysisService {
     );
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw StateError(
-        'Job analysis failed with status ${response.statusCode}: ${response.body}',
+      throw ServiceErrorMapper.fromHttpResponse(
+        response,
+        defaultMessage:
+            'We could not analyze this job offer right now. Please try again.',
       );
     }
 
