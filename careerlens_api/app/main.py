@@ -127,7 +127,7 @@ def analyze_job(payload: JobAnalyzeRequest) -> JobAnalyzeResponse:
 
     return JobAnalyzeResponse(
         message="Job description analyzed successfully.",
-        job_description_id=save_result["job_description_id"],
-        job_analysis_id=save_result["job_analysis_id"],
+        job_description_id=str(save_result["job_description_id"]),
+        job_analysis_id=str(save_result["job_analysis_id"]),
         analysis=analysis,
     )

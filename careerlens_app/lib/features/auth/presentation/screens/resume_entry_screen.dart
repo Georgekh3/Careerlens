@@ -28,90 +28,88 @@ class ResumeEntryScreen extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 20),
-                const Text(
-                  'CareerLens',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Color(0xFF163B84),
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  hasExistingProfile
-                      ? 'Your profile is already saved. You can continue with your existing CV or upload a new one.'
-                      : 'Upload your CV to create your profile and unlock job analysis.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xFF5E7299),
-                    fontSize: 15,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (hasExistingProfile) ...[
-                        _ActionCard(
-                          title: 'Use My Existing CV',
-                          subtitle:
-                              'Open your saved profile and continue from where you left off.',
-                          icon: Icons.account_box_outlined,
-                          buttonLabel: 'Open My Profile',
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const ProfileScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
+          child: LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SizedBox(height: 20),
+                    const Text(
+                      'CareerLens',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xFF163B84),
+                        fontSize: 32,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      hasExistingProfile
+                          ? 'Your profile is already saved. You can continue with your existing CV or upload a new one.'
+                          : 'Upload your CV to create your profile and unlock job analysis.',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Color(0xFF5E7299),
+                        fontSize: 15,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    if (hasExistingProfile) ...[
                       _ActionCard(
-                        title: 'Upload New CV',
+                        title: 'Use My Existing CV',
                         subtitle:
-                            'Upload a fresh CV to update your structured profile.',
-                        icon: Icons.upload_file_rounded,
-                        buttonLabel: 'Upload CV',
+                            'Open your saved profile and continue from where you left off.',
+                        icon: Icons.account_box_outlined,
+                        buttonLabel: 'Open My Profile',
                         onPressed: () {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
-                              builder: (_) => const UploadCvScreen(),
+                              builder: (_) => const ProfileScreen(),
                             ),
                           );
                         },
                       ),
-                      if (hasExistingProfile) ...[
-                        const SizedBox(height: 16),
-                        _ActionCard(
-                          title: 'Analyze a Job Offer',
-                          subtitle:
-                              'Use your saved profile to compare against a job description now.',
-                          icon: Icons.analytics_outlined,
-                          buttonLabel: 'Go to Job Analysis',
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => const JobAnalysisScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
+                      const SizedBox(height: 16),
                     ],
-                  ),
+                    _ActionCard(
+                      title: 'Upload New CV',
+                      subtitle:
+                          'Upload a fresh CV to update your structured profile.',
+                      icon: Icons.upload_file_rounded,
+                      buttonLabel: 'Upload CV',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const UploadCvScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    if (hasExistingProfile) ...[
+                      const SizedBox(height: 16),
+                      _ActionCard(
+                        title: 'Analyze a Job Offer',
+                        subtitle:
+                            'Use your saved profile to compare against a job description now.',
+                        icon: Icons.analytics_outlined,
+                        buttonLabel: 'Go to Job Analysis',
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const JobAnalysisScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
