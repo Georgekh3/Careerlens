@@ -78,8 +78,6 @@ class JobAnalysisResult {
 class JobAnalysisService {
   Future<JobAnalysisResult> analyzeJob({
     required String rawText,
-    String title = '',
-    String company = '',
     String location = '',
   }) async {
     if (SupabaseConfig.apiBaseUrl.isEmpty) {
@@ -97,8 +95,8 @@ class JobAnalysisService {
       body: jsonEncode({
         'user_id': userId,
         'raw_text': rawText,
-        'title': title,
-        'company': company,
+        'title': '',
+        'company': '',
         'location': location,
         'source': 'pasted',
       }),

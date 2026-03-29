@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/job_analysis_service.dart';
+import '../../../interview_coaching/presentation/screens/interview_coaching_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
 class JobAnalysisScreen extends StatefulWidget {
@@ -12,8 +13,6 @@ class JobAnalysisScreen extends StatefulWidget {
 
 class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _titleController = TextEditingController();
-  final _companyController = TextEditingController();
   final _locationController = TextEditingController();
   final _jobDescriptionController = TextEditingController();
   final JobAnalysisService _jobAnalysisService = JobAnalysisService();
@@ -24,8 +23,6 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _companyController.dispose();
     _locationController.dispose();
     _jobDescriptionController.dispose();
     super.dispose();
@@ -44,8 +41,6 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
     try {
       final result = await _jobAnalysisService.analyzeJob(
         rawText: _jobDescriptionController.text.trim(),
-        title: _titleController.text.trim(),
-        company: _companyController.text.trim(),
         location: _locationController.text.trim(),
       );
 
@@ -104,18 +99,6 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _InputField(
-                      label: 'Job Title',
-                      controller: _titleController,
-                      validator: (_) => null,
-                    ),
-                    const SizedBox(height: 12),
-                    _InputField(
-                      label: 'Company',
-                      controller: _companyController,
-                      validator: (_) => null,
-                    ),
-                    const SizedBox(height: 12),
                     _InputField(
                       label: 'Location',
                       controller: _locationController,
@@ -177,6 +160,49 @@ class _JobAnalysisScreenState extends State<JobAnalysisScreen> {
               if (_result != null) ...[
                 const SizedBox(height: 16),
                 _AnalysisResultCard(result: _result!),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => InterviewCoachingScreen(
+                            initialLocation: _locationController.text.trim(),
+                            initialJobDescription:
+                                _jobDescriptionController.text.trim(),
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.record_voice_over_outlined),
+                    label: const Text('Start AI Interview Coaching'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E4EA8),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  height: 48,
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1E4EA8),
+                      side: const BorderSide(color: Color(0xFFBCD0FF)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('OK'),
+                  ),
+                ),
               ],
             ],
           ),

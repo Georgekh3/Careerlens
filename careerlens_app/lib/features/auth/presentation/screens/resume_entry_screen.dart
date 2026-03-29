@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../job_analysis/presentation/screens/job_analysis_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 import 'upload_cv_screen.dart';
 
@@ -90,23 +89,6 @@ class ResumeEntryScreen extends StatelessWidget {
                         );
                       },
                     ),
-                    if (hasExistingProfile) ...[
-                      const SizedBox(height: 16),
-                      _ActionCard(
-                        title: 'Analyze a Job Offer',
-                        subtitle:
-                            'Use your saved profile to compare against a job description now.',
-                        icon: Icons.analytics_outlined,
-                        buttonLabel: 'Go to Job Analysis',
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const JobAnalysisScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
                   ],
                 ),
               ),

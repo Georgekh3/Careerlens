@@ -1,10 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.schemas.interview_preparation import (
+    InterviewPrepareRequest,
+    InterviewPrepareResponse,
+)
+from app.schemas.interview_coaching import (
+    InterviewSessionStartRequest,
+    InterviewSessionStartResponse,
+    InterviewTurnAnswerRequest,
+    InterviewTurnAnswerResponse,
+    InterviewSessionView,
+)
 from app.schemas.job_analysis import JobAnalyzeRequest, JobAnalyzeResponse
 from app.config import settings
 from app.schemas.profile import CvProcessRequest, CvProcessResponse
+from app.services.interview_coaching_parser import InterviewCoachingParser
+from app.services.interview_coaching_repository import InterviewCoachingRepository
 from app.services.cv_text_extractor import CvTextExtractor
+from app.services.interview_preparation_parser import InterviewPreparationParser
+from app.services.interview_preparation_repository import (
+    InterviewPreparationRepository,
+)
 from app.services.job_analysis_parser import JobAnalysisParser
 from app.services.job_analysis_repository import JobAnalysisRepository
 from app.services.cv_upload_repository import CvUploadRepository
@@ -25,6 +42,10 @@ app.add_middleware(
 
 cv_text_extractor = CvTextExtractor()
 cv_upload_repository = CvUploadRepository()
+interview_coaching_parser = InterviewCoachingParser()
+interview_coaching_repository = InterviewCoachingRepository()
+interview_preparation_parser = InterviewPreparationParser()
+interview_preparation_repository = InterviewPreparationRepository()
 job_analysis_parser = JobAnalysisParser()
 job_analysis_repository = JobAnalysisRepository()
 profile_parser = ProfileParser()
@@ -130,4 +151,95 @@ def analyze_job(payload: JobAnalyzeRequest) -> JobAnalyzeResponse:
         job_description_id=str(save_result["job_description_id"]),
         job_analysis_id=str(save_result["job_analysis_id"]),
         analysis=analysis,
+    )
+
+
+@app.post("/interview/prepare", response_model=InterviewPrepareResponse)
+def prepare_interview(payload: InterviewPrepareRequest) -> InterviewPrepareResponse:
+    profile = interview_preparation_repository.fetch_current_profile(
+        user_id=payload.user_id
+    )
+    preparation = interview_preparation_parser.prepare(
+        profile=profile,
+        raw_job_text=payload.raw_text,
+        title=payload.title,
+        company=payload.company,
+        location=payload.location,
+    )
+
+    return InterviewPrepareResponse(
+        message="Interview preparation generated successfully.",
+        preparation=preparation,
+    )
+
+
+@app.post(
+    "/interview/session/start",
+    response_model=InterviewSessionStartResponse,
+)
+def start_interview_session(
+    payload: InterviewSessionStartRequest,
+) -> InterviewSessionStartResponse:
+    profile = interview_coaching_repository.fetch_current_profile(user_id=payload.user_id)
+    kickoff = interview_coaching_parser.generate_kickoff(
+        profile=profile,
+        raw_job_text=payload.raw_text,
+        location=payload.location,
+    )
+    session_view = interview_coaching_repository.create_session(
+        user_id=payload.user_id,
+        raw_job_text=payload.raw_text,
+        location=payload.location,
+        kickoff=kickoff,
+    )
+
+    return InterviewSessionStartResponse(
+        message="Interview coaching session started successfully.",
+        session=session_view,
+    )
+
+
+@app.post(
+    "/interview/session/answer",
+    response_model=InterviewTurnAnswerResponse,
+)
+def answer_interview_turn(
+    payload: InterviewTurnAnswerRequest,
+) -> InterviewTurnAnswerResponse:
+    profile = interview_coaching_repository.fetch_current_profile(user_id=payload.user_id)
+    turn_context = interview_coaching_repository.fetch_turn_context(
+        user_id=payload.user_id,
+        session_id=payload.session_id,
+    )
+    turn_result = interview_coaching_parser.evaluate_turn(
+        profile=profile,
+        raw_job_text=turn_context["raw_job_text"],
+        location=turn_context["location"],
+        session_summary=turn_context["session_summary"],
+        prior_turns=turn_context["prior_turns"],
+        current_question=turn_context["current_question"],
+        answer_text=payload.answer,
+        answered_turn_count=turn_context["answered_turn_count"],
+    )
+    session_view = interview_coaching_repository.save_turn_result(
+        user_id=payload.user_id,
+        session_id=payload.session_id,
+        answer_text=payload.answer,
+        result=turn_result,
+    )
+
+    return InterviewTurnAnswerResponse(
+        message="Interview answer evaluated successfully.",
+        session=session_view,
+    )
+
+
+@app.get(
+    "/interview/session/{session_id}",
+    response_model=InterviewSessionView,
+)
+def get_interview_session(session_id: str, user_id: str) -> InterviewSessionView:
+    return interview_coaching_repository.fetch_session_state(
+        user_id=user_id,
+        session_id=session_id,
     )
