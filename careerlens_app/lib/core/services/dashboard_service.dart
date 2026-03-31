@@ -6,12 +6,14 @@ class DashboardSnapshot {
   const DashboardSnapshot({
     required this.profile,
     required this.hasExistingProfile,
+    required this.latestCvUploadAt,
     required this.recentJobAnalyses,
     required this.recentCoachingSessions,
   });
 
   final Map<String, dynamic> profile;
   final bool hasExistingProfile;
+  final DateTime? latestCvUploadAt;
   final List<RecentJobAnalysis> recentJobAnalyses;
   final List<RecentCoachingSession> recentCoachingSessions;
 }
@@ -50,6 +52,42 @@ class RecentCoachingSession {
   final DateTime? completedAt;
 }
 
+class SavedJobAnalysisDetail {
+  const SavedJobAnalysisDetail({
+    required this.score,
+    required this.location,
+    required this.rawText,
+    required this.createdAt,
+    required this.skillsMatchScore,
+    required this.experienceMatchScore,
+    required this.educationCertScore,
+    required this.domainRelevanceScore,
+    required this.matchedSkills,
+    required this.missingSkills,
+    required this.missingRequirements,
+    required this.recommendations,
+    required this.overallSummary,
+    required this.strengths,
+    required this.risks,
+  });
+
+  final int score;
+  final String location;
+  final String rawText;
+  final DateTime? createdAt;
+  final int skillsMatchScore;
+  final int experienceMatchScore;
+  final int educationCertScore;
+  final int domainRelevanceScore;
+  final List<String> matchedSkills;
+  final List<String> missingSkills;
+  final List<String> missingRequirements;
+  final List<String> recommendations;
+  final String overallSummary;
+  final List<String> strengths;
+  final List<String> risks;
+}
+
 class DashboardService {
   DashboardService({SupabaseClient? client, ProfileService? profileService})
     : _client = client ?? Supabase.instance.client,
@@ -61,6 +99,7 @@ class DashboardService {
   Future<DashboardSnapshot> fetchSnapshot() async {
     final profile = await _profileService.fetchCurrentUserProfile();
     final hasExistingProfile = _hasExistingProfileData(profile);
+    final latestCvUploadAt = await _fetchLatestCvUploadAt();
 
     final recentJobAnalyses = await _fetchRecentJobAnalyses();
     final recentCoachingSessions = await _fetchRecentCoachingSessions();
@@ -68,8 +107,59 @@ class DashboardService {
     return DashboardSnapshot(
       profile: profile,
       hasExistingProfile: hasExistingProfile,
+      latestCvUploadAt: latestCvUploadAt,
       recentJobAnalyses: recentJobAnalyses,
       recentCoachingSessions: recentCoachingSessions,
+    );
+  }
+
+  Future<SavedJobAnalysisDetail> fetchJobAnalysisDetail(
+    String analysisId,
+  ) async {
+    final rows = await _client
+        .from('job_analyses')
+        .select(
+          'id, overall_fit_score, skills_match_score, experience_match_score, education_cert_score, domain_relevance_score, matched_skills, missing_skills, missing_requirements, recommendations, score_explanation, created_at, job_description_id',
+        )
+        .eq('id', analysisId)
+        .limit(1);
+
+    final rowList = List<Map<String, dynamic>>.from(rows);
+    if (rowList.isEmpty) {
+      throw StateError('Job analysis not found.');
+    }
+
+    final row = rowList.first;
+    final descriptionRows = await _client
+        .from('job_descriptions')
+        .select('location, raw_text')
+        .eq('id', row['job_description_id']?.toString() ?? '')
+        .limit(1);
+
+    final descriptionList = List<Map<String, dynamic>>.from(descriptionRows);
+    final description = descriptionList.isEmpty
+        ? const <String, dynamic>{}
+        : descriptionList.first;
+    final scoreExplanation = Map<String, dynamic>.from(
+      row['score_explanation'] as Map? ?? const <String, dynamic>{},
+    );
+
+    return SavedJobAnalysisDetail(
+      score: row['overall_fit_score'] as int? ?? 0,
+      location: description['location']?.toString() ?? '',
+      rawText: description['raw_text']?.toString() ?? '',
+      createdAt: _parseDateTime(row['created_at']),
+      skillsMatchScore: row['skills_match_score'] as int? ?? 0,
+      experienceMatchScore: row['experience_match_score'] as int? ?? 0,
+      educationCertScore: row['education_cert_score'] as int? ?? 0,
+      domainRelevanceScore: row['domain_relevance_score'] as int? ?? 0,
+      matchedSkills: _toStringList(row['matched_skills']),
+      missingSkills: _toStringList(row['missing_skills']),
+      missingRequirements: _toStringList(row['missing_requirements']),
+      recommendations: _toStringList(row['recommendations']),
+      overallSummary: scoreExplanation['overall_summary']?.toString() ?? '',
+      strengths: _toStringList(scoreExplanation['strengths']),
+      risks: _toStringList(scoreExplanation['risks']),
     );
   }
 
@@ -141,6 +231,20 @@ class DashboardService {
     }).toList();
   }
 
+  Future<DateTime?> _fetchLatestCvUploadAt() async {
+    final rows = await _client
+        .from('cv_uploads')
+        .select('created_at')
+        .order('created_at', ascending: false)
+        .limit(1);
+
+    final rowList = List<Map<String, dynamic>>.from(rows);
+    if (rowList.isEmpty) {
+      return null;
+    }
+    return _parseDateTime(rowList.first['created_at']);
+  }
+
   bool _hasExistingProfileData(Map<String, dynamic> profile) {
     final headline = (profile['headline'] as String? ?? '').trim();
     final summary = (profile['summary'] as String? ?? '').trim();
@@ -172,5 +276,12 @@ class DashboardService {
       return normalized;
     }
     return '${normalized.substring(0, 93)}...';
+  }
+
+  static List<String> _toStringList(dynamic value) {
+    if (value is List) {
+      return value.map((item) => item.toString()).toList();
+    }
+    return const <String>[];
   }
 }

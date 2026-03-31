@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../../core/services/dashboard_service.dart';
 import '../../../auth/presentation/screens/upload_cv_screen.dart';
 import '../../../interview_coaching/presentation/screens/interview_coaching_screen.dart';
+import 'job_analysis_detail_screen.dart';
 import '../../../job_analysis/presentation/screens/job_analysis_screen.dart';
 import '../../../profile/presentation/screens/profile_screen.dart';
 
@@ -75,6 +76,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final skills = (profile['skills'] as List?)?.length ?? 0;
     final experience = (profile['experience'] as List?)?.length ?? 0;
     final hasExistingProfile = snapshot?.hasExistingProfile ?? false;
+    final latestJobScore = snapshot?.recentJobAnalyses.firstOrNull?.score;
+    final latestReadiness =
+        snapshot?.recentCoachingSessions.firstOrNull?.readinessScore;
+    final latestCvUploadAt = snapshot?.latestCvUploadAt;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F7FF),
@@ -104,6 +109,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     fullName: (profile['full_name'] as String?)?.trim() ?? '',
                     headline: (profile['headline'] as String?)?.trim() ?? '',
                     hasExistingProfile: hasExistingProfile,
+                  ),
+                  const SizedBox(height: 16),
+                  _TopMetricsStrip(
+                    latestJobScore: latestJobScore,
+                    latestReadiness: latestReadiness,
+                    latestCvUploadAt: latestCvUploadAt,
                   ),
                   const SizedBox(height: 16),
                   if (_errorMessage != null) ...[
@@ -179,7 +190,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ...snapshot.recentJobAnalyses.map(
                       (analysis) => Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _JobHistoryCard(analysis: analysis),
+                        child: _JobHistoryCard(
+                          analysis: analysis,
+                          onTap: () => _openAndRefresh(
+                            JobAnalysisDetailScreen(analysisId: analysis.id),
+                          ),
+                        ),
                       ),
                     ),
                   const SizedBox(height: 20),
@@ -217,6 +233,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
     );
   }
+}
+
+extension _ListFirstOrNull<T> on List<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }
 
 class _DashboardHero extends StatelessWidget {
@@ -438,78 +458,188 @@ class _MetricSummaryTile extends StatelessWidget {
 }
 
 class _JobHistoryCard extends StatelessWidget {
-  const _JobHistoryCard({required this.analysis});
+  const _JobHistoryCard({required this.analysis, required this.onTap});
 
   final RecentJobAnalysis analysis;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFDCE7FF)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF1FF),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Text(
+                  '${analysis.score}',
+                  style: const TextStyle(
+                    color: Color(0xFF173D8A),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    analysis.location.isEmpty
+                        ? 'Location not provided'
+                        : analysis.location,
+                    style: const TextStyle(
+                      color: Color(0xFF173D8A),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    analysis.preview.isEmpty
+                        ? 'No job description preview available.'
+                        : analysis.preview,
+                    style: const TextStyle(
+                      color: Color(0xFF62779E),
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Text(
+                        'Open details',
+                        style: TextStyle(
+                          color: Color(0xFF1E4EA8),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      if (analysis.createdAt != null)
+                        Text(
+                          _formatDate(analysis.createdAt!),
+                          style: const TextStyle(
+                            color: Color(0xFF8A9BB8),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TopMetricsStrip extends StatelessWidget {
+  const _TopMetricsStrip({
+    required this.latestJobScore,
+    required this.latestReadiness,
+    required this.latestCvUploadAt,
+  });
+
+  final int? latestJobScore;
+  final int? latestReadiness;
+  final DateTime? latestCvUploadAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _CompactMetricCard(
+            label: 'Latest Fit',
+            value: latestJobScore == null ? '--' : '$latestJobScore/100',
+            icon: Icons.analytics_outlined,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _CompactMetricCard(
+            label: 'Readiness',
+            value: latestReadiness == null ? '--' : '$latestReadiness/100',
+            icon: Icons.record_voice_over_outlined,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _CompactMetricCard(
+            label: 'CV Updated',
+            value: latestCvUploadAt == null
+                ? '--'
+                : _formatDate(latestCvUploadAt!),
+            icon: Icons.upload_file_rounded,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CompactMetricCard extends StatelessWidget {
+  const _CompactMetricCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: const Color(0xFFDCE7FF)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEAF1FF),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Center(
-              child: Text(
-                '${analysis.score}',
-                style: const TextStyle(
-                  color: Color(0xFF173D8A),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+          Icon(icon, size: 18, color: const Color(0xFF1E4EA8)),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Color(0xFF173D8A),
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  analysis.location.isEmpty
-                      ? 'Location not provided'
-                      : analysis.location,
-                  style: const TextStyle(
-                    color: Color(0xFF173D8A),
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  analysis.preview.isEmpty
-                      ? 'No job description preview available.'
-                      : analysis.preview,
-                  style: const TextStyle(
-                    color: Color(0xFF62779E),
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-                if (analysis.createdAt != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _formatDate(analysis.createdAt!),
-                    style: const TextStyle(
-                      color: Color(0xFF8A9BB8),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ],
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF62779E),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
