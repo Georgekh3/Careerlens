@@ -15,8 +15,8 @@ class Basics(StrictSchemaModel):
 
 class Skill(StrictSchemaModel):
     name: str = Field(..., min_length=1)
-    evidence: str
-    confidence: Optional[float] = Field(..., ge=0, le=1)
+    evidence: Optional[str] = None
+    confidence: Optional[float] = Field(None, ge=0, le=1)
 
 
 class ExperienceItem(StrictSchemaModel):
