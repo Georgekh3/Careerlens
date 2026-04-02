@@ -2,7 +2,7 @@ from sqlalchemy import text
 
 from app.db import SessionLocal
 from app.schemas.job_analysis import JobAnalysisResult
-from app.schemas.profile import StructuredProfile
+from app.schemas.profile import StructuredProfile, normalize_stored_profile
 
 
 class JobAnalysisRepository:
@@ -22,7 +22,9 @@ class JobAnalysisRepository:
             if row is None:
                 raise ValueError(f"Profile not found for user_id={user_id}")
 
-            return StructuredProfile.model_validate(row["authoritative_profile"])
+            return StructuredProfile.model_validate(
+                normalize_stored_profile(row["authoritative_profile"])
+            )
 
     def save_job_analysis(
         self,

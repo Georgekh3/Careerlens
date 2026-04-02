@@ -11,7 +11,7 @@ from app.schemas.interview_coaching import (
     TurnCoachingResult,
     TurnEvaluation,
 )
-from app.schemas.profile import StructuredProfile
+from app.schemas.profile import StructuredProfile, normalize_stored_profile
 
 
 class InterviewCoachingRepository:
@@ -31,7 +31,9 @@ class InterviewCoachingRepository:
             if row is None:
                 raise ValueError(f"Profile not found for user_id={user_id}")
 
-            return StructuredProfile.model_validate(row["authoritative_profile"])
+            return StructuredProfile.model_validate(
+                normalize_stored_profile(row["authoritative_profile"])
+            )
 
     def create_session(
         self,

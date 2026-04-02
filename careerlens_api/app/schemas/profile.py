@@ -15,8 +15,8 @@ class Basics(StrictSchemaModel):
 
 class Skill(StrictSchemaModel):
     name: str = Field(..., min_length=1)
-    evidence: Optional[str] = None
-    confidence: Optional[float] = Field(None, ge=0, le=1)
+    evidence: str
+    confidence: Optional[float] = Field(..., ge=0, le=1)
 
 
 class ExperienceItem(StrictSchemaModel):
@@ -51,6 +51,23 @@ class StructuredProfile(StrictSchemaModel):
     experience: List[ExperienceItem]
     education: List[EducationItem]
     certifications: List[CertificationItem]
+
+
+def normalize_stored_profile(payload: dict) -> dict:
+    """Backfill older saved profile shapes so strict validation still passes."""
+
+    normalized = dict(payload)
+    normalized["skills"] = [
+        {
+            "name": item.get("name", ""),
+            "evidence": item.get("evidence", ""),
+            "confidence": item.get("confidence"),
+        }
+        for item in normalized.get("skills", []) or []
+        if isinstance(item, dict)
+    ]
+
+    return normalized
 
 
 class CvProcessRequest(StrictSchemaModel):
