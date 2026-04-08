@@ -38,6 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
       await client.auth.signInWithOAuth(
         OAuthProvider.google,
         redirectTo: redirectTo,
+        authScreenLaunchMode: kIsWeb
+            ? LaunchMode.platformDefault
+            : LaunchMode.externalApplication,
         queryParams: const {'prompt': 'select_account'},
       );
     } on AuthException catch (error) {

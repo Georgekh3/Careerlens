@@ -135,11 +135,65 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
     }
   }
 
+  Future<void> _finishSession() async {
+    final session = _session;
+    if (session == null || session.isSessionComplete) {
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await _service.finishSession(
+        sessionId: session.sessionId,
+      );
+      if (!mounted) {
+        return;
+      }
+      _answerController.clear();
+      setState(() {
+        _session = response.session;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(response.message)));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = ServiceErrorMapper.toUserMessage(
+          error,
+          fallback: 'We could not finish that interview session right now.',
+        );
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _retryCurrentFlow() async {
+    if (widget.existingSessionId != null &&
+        widget.existingSessionId!.trim().isNotEmpty) {
+      await _loadExistingSession();
+      return;
+    }
+    await _startSession();
+  }
+
   Future<void> _submitAnswer() async {
     final session = _session;
     if (session == null || session.currentQuestion == null) {
       return;
     }
+    final activeTurn = session.turns
+        .where((turn) => turn.answer.trim().isEmpty)
+        .firstOrNull;
 
     final answer = _answerController.text.trim();
     if (answer.length < 5) {
@@ -158,6 +212,7 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
       final response = await _service.answerTurn(
         sessionId: session.sessionId,
         answer: answer,
+        turnId: activeTurn?.turnId,
       );
       if (!mounted) {
         return;
@@ -232,6 +287,10 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
                     label: 'Mode',
                     value: 'AI-generated mock interview with live scoring',
                   ),
+                  if (session?.currentStage != null) ...[
+                    const SizedBox(height: 8),
+                    _MetaLine(label: 'Stage', value: session!.currentStage!),
+                  ],
                 ],
               ),
             ),
@@ -294,7 +353,7 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
                     if (session == null && !_isStarting) ...[
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
-                        onPressed: _startSession,
+                        onPressed: _retryCurrentFlow,
                         icon: const Icon(Icons.refresh_rounded),
                         label: const Text('Try Again'),
                         style: OutlinedButton.styleFrom(
@@ -325,9 +384,49 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
               _SessionSummaryCard(session: session),
               const SizedBox(height: 12),
               if (session.turns.isNotEmpty) _TurnsCard(turns: session.turns),
+              if (!session.isSessionComplete) ...[
+                _SectionCard(
+                  title: 'Session Control',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        session.readyToFinish
+                            ? 'You have enough coverage to finish now, or continue for deeper follow-up questions.'
+                            : 'The interview stays active until you explicitly finish it. The backend keeps stage progression structured.',
+                        style: const TextStyle(
+                          color: Color(0xFF38537E),
+                          fontSize: 14,
+                          height: 1.45,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isSubmitting ? null : _finishSession,
+                          icon: const Icon(Icons.stop_circle_outlined),
+                          label: Text(
+                            session.readyToFinish
+                                ? 'Finish Session'
+                                : 'Stop Session',
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF1E4EA8),
+                            side: const BorderSide(color: Color(0xFFBCD0FF)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (session.currentQuestion != null &&
                   !session.isSessionComplete) ...[
-                const SizedBox(height: 12),
                 const _SectionCard(
                   title: 'Answer Strategy',
                   child: Text(
@@ -430,7 +529,9 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
                   title: 'Session Complete',
                   child: Text(
                     session.sessionSummary.isEmpty
-                        ? 'This coaching session is complete.'
+                        ? session.completionReason == 'user_finished'
+                              ? 'This coaching session was finished by you.'
+                              : 'This coaching session is complete.'
                         : session.sessionSummary,
                     style: const TextStyle(
                       color: Color(0xFF38537E),
@@ -446,6 +547,10 @@ class _InterviewCoachingScreenState extends State<InterviewCoachingScreen> {
       ),
     );
   }
+}
+
+extension _FirstOrNullInterviewTurn on Iterable<InterviewTurn> {
+  InterviewTurn? get firstOrNull => isEmpty ? null : first;
 }
 
 class _CoachingHero extends StatelessWidget {

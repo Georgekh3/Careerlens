@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.schemas.interview_coaching import (
+    InterviewSessionFinishRequest,
+    InterviewSessionFinishResponse,
     InterviewSessionStartRequest,
     InterviewSessionStartResponse,
     InterviewTurnAnswerRequest,
@@ -12,7 +14,11 @@ from app.schemas.job_analysis import JobAnalyzeRequest, JobAnalyzeResponse
 from app.config import settings
 from app.schemas.profile import CvProcessRequest, CvProcessResponse
 from app.services.interview_coaching_parser import InterviewCoachingParser
-from app.services.interview_coaching_repository import InterviewCoachingRepository
+from app.services.interview_coaching_repository import (
+    InterviewCoachingRepository,
+    InterviewNotFoundError,
+    InterviewStateError,
+)
 from app.services.cv_text_extractor import CvTextExtractor
 from app.services.job_analysis_parser import JobAnalysisParser
 from app.services.job_analysis_repository import JobAnalysisRepository
@@ -151,18 +157,26 @@ def analyze_job(payload: JobAnalyzeRequest) -> JobAnalyzeResponse:
 def start_interview_session(
     payload: InterviewSessionStartRequest,
 ) -> InterviewSessionStartResponse:
-    profile = interview_coaching_repository.fetch_current_profile(user_id=payload.user_id)
-    kickoff = interview_coaching_parser.generate_kickoff(
-        profile=profile,
-        raw_job_text=payload.raw_text,
-        location=payload.location,
-    )
-    session_view = interview_coaching_repository.create_session(
-        user_id=payload.user_id,
-        raw_job_text=payload.raw_text,
-        location=payload.location,
-        kickoff=kickoff,
-    )
+    # TODO(auth): Replace client-supplied user_id with authenticated server-side identity.
+    try:
+        profile = interview_coaching_repository.fetch_current_profile(user_id=payload.user_id)
+        kickoff = interview_coaching_parser.generate_kickoff(
+            profile=profile,
+            raw_job_text=payload.raw_text,
+            location=payload.location,
+        )
+        session_view = interview_coaching_repository.create_session(
+            user_id=payload.user_id,
+            raw_job_text=payload.raw_text,
+            location=payload.location,
+            kickoff=kickoff,
+        )
+    except InterviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except InterviewStateError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     return InterviewSessionStartResponse(
         message="Interview coaching session started successfully.",
@@ -177,30 +191,66 @@ def start_interview_session(
 def answer_interview_turn(
     payload: InterviewTurnAnswerRequest,
 ) -> InterviewTurnAnswerResponse:
-    profile = interview_coaching_repository.fetch_current_profile(user_id=payload.user_id)
-    turn_context = interview_coaching_repository.fetch_turn_context(
-        user_id=payload.user_id,
-        session_id=payload.session_id,
-    )
-    turn_result = interview_coaching_parser.evaluate_turn(
-        profile=profile,
-        raw_job_text=turn_context["raw_job_text"],
-        location=turn_context["location"],
-        session_summary=turn_context["session_summary"],
-        prior_turns=turn_context["prior_turns"],
-        current_question=turn_context["current_question"],
-        answer_text=payload.answer,
-        answered_turn_count=turn_context["answered_turn_count"],
-    )
-    session_view = interview_coaching_repository.save_turn_result(
-        user_id=payload.user_id,
-        session_id=payload.session_id,
-        answer_text=payload.answer,
-        result=turn_result,
-    )
+    # TODO(auth): Replace client-supplied user_id with authenticated server-side identity.
+    try:
+        profile = interview_coaching_repository.fetch_current_profile(user_id=payload.user_id)
+        turn_context = interview_coaching_repository.fetch_turn_context(
+            user_id=payload.user_id,
+            session_id=payload.session_id,
+        )
+        turn_result = interview_coaching_parser.evaluate_turn(
+            profile=profile,
+            raw_job_text=turn_context["raw_job_text"],
+            location=turn_context["location"],
+            session_summary=turn_context["session_summary"],
+            prior_turns=turn_context["prior_turns"],
+            current_question=turn_context["current_question"],
+            answer_text=payload.answer,
+            answered_turn_count=turn_context["answered_turn_count"],
+            current_stage=turn_context["current_stage"],
+            next_stage=turn_context["next_stage"],
+            ready_to_finish=turn_context["ready_to_finish"],
+        )
+        session_view = interview_coaching_repository.save_turn_result(
+            user_id=payload.user_id,
+            session_id=payload.session_id,
+            answer_text=payload.answer,
+            result=turn_result,
+            expected_turn_id=payload.turn_id,
+        )
+    except InterviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except InterviewStateError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
 
     return InterviewTurnAnswerResponse(
         message="Interview answer evaluated successfully.",
+        session=session_view,
+    )
+
+
+@app.post(
+    "/interview/session/finish",
+    response_model=InterviewSessionFinishResponse,
+)
+def finish_interview_session(
+    payload: InterviewSessionFinishRequest,
+) -> InterviewSessionFinishResponse:
+    # TODO(auth): Replace client-supplied user_id with authenticated server-side identity.
+    try:
+        session_view = interview_coaching_repository.finish_session(
+            user_id=payload.user_id,
+            session_id=payload.session_id,
+        )
+    except InterviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except InterviewStateError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+    return InterviewSessionFinishResponse(
+        message="Interview coaching session finished successfully.",
         session=session_view,
     )
 
@@ -210,7 +260,13 @@ def answer_interview_turn(
     response_model=InterviewSessionView,
 )
 def get_interview_session(session_id: str, user_id: str) -> InterviewSessionView:
-    return interview_coaching_repository.fetch_session_state(
-        user_id=user_id,
-        session_id=session_id,
-    )
+    # TODO(auth): Replace client-supplied user_id with authenticated server-side identity.
+    try:
+        return interview_coaching_repository.fetch_session_state(
+            user_id=user_id,
+            session_id=session_id,
+        )
+    except InterviewNotFoundError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except InterviewStateError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error

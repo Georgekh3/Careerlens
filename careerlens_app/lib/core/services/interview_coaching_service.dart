@@ -11,17 +11,23 @@ class CoachingQuestion {
     required this.question,
     required this.category,
     required this.intent,
+    this.stage,
+    this.rationale,
   });
 
   final String question;
   final String category;
   final String intent;
+  final String? stage;
+  final String? rationale;
 
   factory CoachingQuestion.fromJson(Map<String, dynamic> json) {
     return CoachingQuestion(
       question: json['question'] as String? ?? '',
       category: json['category'] as String? ?? '',
       intent: json['intent'] as String? ?? '',
+      stage: json['stage'] as String?,
+      rationale: json['rationale'] as String?,
     );
   }
 }
@@ -59,6 +65,10 @@ class TurnEvaluation {
     required this.performanceRating,
     required this.readinessScore,
     required this.scores,
+    this.stage,
+    this.confidenceNote,
+    required this.answerStrengths,
+    required this.answerGaps,
   });
 
   final String structuredFeedback;
@@ -66,6 +76,10 @@ class TurnEvaluation {
   final String performanceRating;
   final int readinessScore;
   final TurnEvaluationScores scores;
+  final String? stage;
+  final String? confidenceNote;
+  final List<String> answerStrengths;
+  final List<String> answerGaps;
 
   factory TurnEvaluation.fromJson(Map<String, dynamic> json) {
     List<String> stringList(dynamic value) {
@@ -85,6 +99,10 @@ class TurnEvaluation {
           json['scores'] as Map? ?? const <String, dynamic>{},
         ),
       ),
+      stage: json['stage'] as String?,
+      confidenceNote: json['confidence_note'] as String?,
+      answerStrengths: stringList(json['answer_strengths']),
+      answerGaps: stringList(json['answer_gaps']),
     );
   }
 }
@@ -132,6 +150,9 @@ class InterviewCoachingSession {
     required this.currentQuestion,
     required this.turns,
     required this.isSessionComplete,
+    this.currentStage,
+    required this.readyToFinish,
+    this.completionReason,
   });
 
   final String sessionId;
@@ -142,6 +163,9 @@ class InterviewCoachingSession {
   final CoachingQuestion? currentQuestion;
   final List<InterviewTurn> turns;
   final bool isSessionComplete;
+  final String? currentStage;
+  final bool readyToFinish;
+  final String? completionReason;
 
   factory InterviewCoachingSession.fromJson(Map<String, dynamic> json) {
     List<String> stringList(dynamic value) {
@@ -184,6 +208,9 @@ class InterviewCoachingSession {
           : null,
       turns: turnList(json['turns']),
       isSessionComplete: json['is_session_complete'] as bool? ?? false,
+      currentStage: json['current_stage'] as String?,
+      readyToFinish: json['ready_to_finish'] as bool? ?? false,
+      completionReason: json['completion_reason'] as String?,
     );
   }
 }
@@ -234,6 +261,7 @@ class InterviewCoachingService {
   Future<InterviewCoachingResponse> answerTurn({
     required String sessionId,
     required String answer,
+    String? turnId,
   }) async {
     final userId = _currentUserId();
     final response = await http.post(
@@ -243,6 +271,7 @@ class InterviewCoachingService {
         'user_id': userId,
         'session_id': sessionId,
         'answer': answer,
+        if (turnId != null) 'turn_id': turnId,
       }),
     );
 
@@ -272,6 +301,22 @@ class InterviewCoachingService {
 
     return InterviewCoachingSession.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<InterviewCoachingResponse> finishSession({
+    required String sessionId,
+  }) async {
+    final userId = _currentUserId();
+    final response = await http.post(
+      Uri.parse('${SupabaseConfig.apiBaseUrl}/interview/session/finish'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'user_id': userId, 'session_id': sessionId}),
+    );
+
+    return _parseResponse(
+      response,
+      errorPrefix: 'Interview coaching finish failed',
     );
   }
 

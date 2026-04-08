@@ -8,6 +8,9 @@ create table if not exists public.interview_coaching_sessions (
   focus_areas jsonb not null default '[]'::jsonb,
   performance_trend jsonb not null default '[]'::jsonb,
   ai_model text,
+   current_stage text not null default 'intro',
+   ready_to_finish boolean not null default false,
+   completion_reason text,
   started_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   completed_at timestamptz,
@@ -15,9 +18,22 @@ create table if not exists public.interview_coaching_sessions (
     check (jsonb_typeof(focus_areas) = 'array'),
   constraint interview_coaching_sessions_performance_trend_chk
     check (jsonb_typeof(performance_trend) = 'array'),
+  constraint interview_coaching_sessions_stage_chk
+    check (current_stage in ('intro', 'motivation', 'behavioral', 'role_fit', 'technical', 'wrap_up')),
+  constraint interview_coaching_sessions_completion_reason_chk
+    check (completion_reason is null or completion_reason in ('user_finished', 'system_error')),
   constraint interview_coaching_sessions_readiness_chk
     check (current_readiness_score between 1 and 100)
 );
+
+alter table public.interview_coaching_sessions
+  add column if not exists current_stage text not null default 'intro';
+
+alter table public.interview_coaching_sessions
+  add column if not exists ready_to_finish boolean not null default false;
+
+alter table public.interview_coaching_sessions
+  add column if not exists completion_reason text;
 
 create table if not exists public.interview_coaching_turns (
   id uuid primary key default gen_random_uuid(),
