@@ -349,12 +349,7 @@ class InterviewCoachingRepository:
                 raise InterviewStateError(
                     "Interview response was invalid: an unfinished session must provide the next question."
                 )
-            if next_question.stage is None:
-                next_question = next_question.model_copy(update={"stage": next_stage})
-
             evaluation = result.evaluation
-            if evaluation.stage is None:
-                evaluation = evaluation.model_copy(update={"stage": current_stage})
 
             updated_turn = session.execute(
                 text(

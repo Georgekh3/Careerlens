@@ -9,8 +9,6 @@ class CoachingQuestion(StrictSchemaModel):
     question: str
     category: str
     intent: str
-    stage: Optional[str] = None
-    rationale: Optional[str] = None
 
 
 class CoachingKickoffResult(StrictSchemaModel):
@@ -34,10 +32,6 @@ class TurnEvaluation(StrictSchemaModel):
     performance_rating: str
     readiness_score: int = Field(..., ge=1, le=100)
     scores: EvaluationScores
-    stage: Optional[str] = None
-    confidence_note: Optional[str] = None
-    answer_strengths: List[str] = Field(default_factory=list)
-    answer_gaps: List[str] = Field(default_factory=list)
 
 
 class TurnCoachingResult(StrictSchemaModel):
@@ -45,7 +39,6 @@ class TurnCoachingResult(StrictSchemaModel):
     next_question: Optional[CoachingQuestion]
     is_session_complete: bool
     session_summary: str
-    ready_to_finish: bool = False
 
 
 class InterviewTurnView(StrictSchemaModel):

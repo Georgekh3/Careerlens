@@ -33,8 +33,7 @@ class InterviewCoachingParser:
             "experience, and fit at a high level. "
             "Do not begin with a highly technical, narrow, or overly difficult question. "
             "Even though the opening should be general, it should still be subtly aligned with the target role and job description. "
-            "Make the question sound like something a real HR interviewer would ask in the opening minutes of an interview. "
-            "Set first_question.stage to 'intro'."
+            "Make the question sound like something a real HR interviewer would ask in the opening minutes of an interview."
         )
         user_prompt = (
             f"Candidate profile:\n{json.dumps(self._build_profile_context(profile), indent=2)}\n\n"
@@ -50,16 +49,7 @@ class InterviewCoachingParser:
             user_prompt=user_prompt,
             error_prefix="OpenAI interview kickoff error",
         )
-        result = CoachingKickoffResult.model_validate(parsed_json)
-        if result.first_question.stage is None:
-            result = result.model_copy(
-                update={
-                    "first_question": result.first_question.model_copy(
-                        update={"stage": "intro"}
-                    )
-                }
-            )
-        return result
+        return CoachingKickoffResult.model_validate(parsed_json)
 
     def evaluate_turn(
         self,
@@ -88,8 +78,7 @@ class InterviewCoachingParser:
             "Behavioral questions should prioritize structure, specificity, and outcomes. "
             "Role-fit and technical stages should tie feedback directly to the job requirements. "
             "The session is user-controlled, so set is_session_complete to false unless the prompt explicitly says the session is ending. "
-            "Always return a valid next_question. "
-            "Set evaluation.stage to the current stage and set next_question.stage to the next stage."
+            "Always return a valid next_question."
         )
         user_prompt = (
             f"Candidate profile:\n{json.dumps(self._build_profile_context(profile), indent=2)}\n\n"
@@ -116,19 +105,7 @@ class InterviewCoachingParser:
             error_prefix="OpenAI interview turn error",
         )
         result = TurnCoachingResult.model_validate(parsed_json)
-        evaluation = result.evaluation
-        if evaluation.stage is None:
-            evaluation = evaluation.model_copy(update={"stage": current_stage})
-        next_question = result.next_question
-        if next_question is not None and next_question.stage is None:
-            next_question = next_question.model_copy(update={"stage": next_stage})
-        return result.model_copy(
-            update={
-                "evaluation": evaluation,
-                "next_question": next_question,
-                "is_session_complete": False,
-            }
-        )
+        return result.model_copy(update={"is_session_complete": False})
 
     def _build_profile_context(self, profile: StructuredProfile) -> dict:
         return {
@@ -168,7 +145,6 @@ class InterviewCoachingParser:
                         str((turn.get("question") or {}).get("question", "")),
                         220,
                     ),
-                    "stage": (turn.get("question") or {}).get("stage"),
                     "answer": self._clip(str(turn.get("answer", "")), self._MAX_TURN_TEXT_CHARS),
                     "feedback": self._clip(
                         str((turn.get("evaluation") or {}).get("structured_feedback", "")),

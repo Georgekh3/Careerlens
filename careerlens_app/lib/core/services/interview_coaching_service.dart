@@ -11,23 +11,17 @@ class CoachingQuestion {
     required this.question,
     required this.category,
     required this.intent,
-    this.stage,
-    this.rationale,
   });
 
   final String question;
   final String category;
   final String intent;
-  final String? stage;
-  final String? rationale;
 
   factory CoachingQuestion.fromJson(Map<String, dynamic> json) {
     return CoachingQuestion(
       question: json['question'] as String? ?? '',
       category: json['category'] as String? ?? '',
       intent: json['intent'] as String? ?? '',
-      stage: json['stage'] as String?,
-      rationale: json['rationale'] as String?,
     );
   }
 }
@@ -65,10 +59,6 @@ class TurnEvaluation {
     required this.performanceRating,
     required this.readinessScore,
     required this.scores,
-    this.stage,
-    this.confidenceNote,
-    required this.answerStrengths,
-    required this.answerGaps,
   });
 
   final String structuredFeedback;
@@ -76,10 +66,6 @@ class TurnEvaluation {
   final String performanceRating;
   final int readinessScore;
   final TurnEvaluationScores scores;
-  final String? stage;
-  final String? confidenceNote;
-  final List<String> answerStrengths;
-  final List<String> answerGaps;
 
   factory TurnEvaluation.fromJson(Map<String, dynamic> json) {
     List<String> stringList(dynamic value) {
@@ -99,10 +85,6 @@ class TurnEvaluation {
           json['scores'] as Map? ?? const <String, dynamic>{},
         ),
       ),
-      stage: json['stage'] as String?,
-      confidenceNote: json['confidence_note'] as String?,
-      answerStrengths: stringList(json['answer_strengths']),
-      answerGaps: stringList(json['answer_gaps']),
     );
   }
 }
